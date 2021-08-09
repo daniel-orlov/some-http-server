@@ -50,22 +50,27 @@ func (r *QuoteRepository) Save(ctx context.Context, q *types.FullQuoteData) (str
 const readQuoteQuery = `
 	SELECT id, account_id, quote_id, amount, source_currency, target_currency, transaction_fee, edt
 	FROM quotes 
-	WHERE id = $1;
+	WHERE id = $1 AND account_id = $2;
 	`
 
-func (r *QuoteRepository) Read(ctx context.Context, id string) (*types.FullQuoteData, error) {
+func (r *QuoteRepository) Read(ctx context.Context, id, accountID string) (*types.FullQuoteData, error) {
 	if id == "" {
 		return nil, errors.New("empty quote id")
 	}
 
+	if accountID == "" {
+		return nil, errors.New("empty account id")
+	}
+
 	log := ctxlogrus.Extract(ctx).WithFields(logrus.Fields{
-		"quote_id": id,
+		"quote_id":   id,
+		"account_id": accountID,
 	})
 
 	var fqd types.FullQuoteData
-	err := r.db.GetContext(ctx, &fqd, readQuoteQuery, id)
+	err := r.db.GetContext(ctx, &fqd, readQuoteQuery, id, accountID)
 	if errors.Is(err, sql.ErrNoRows) {
-		log.Debug("quote with this id doesn't exist")
+		log.Debug("quote with this account_id and id pair doesn't exist")
 		return nil, nil
 	}
 

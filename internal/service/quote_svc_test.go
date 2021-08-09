@@ -3,12 +3,15 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/golang/mock/gomock"
+	"github.com/pkg/errors"
 	"reflect"
+	"some-http-server/internal/service/mock"
 	"some-http-server/internal/types"
 	"testing"
+
+	"github.com/golang/mock/gomock"
 )
-// TODO generate mock
+
 //go:generate mockgen -source quote_svc.go -package=mock -destination=mock/quote_svc_mock.go
 
 func TestQuoteService_Create(t *testing.T) {
@@ -22,26 +25,33 @@ func TestQuoteService_Create(t *testing.T) {
 		AccountID:      42,
 	}
 
+	res := &types.CreateQuoteResponseData{
+		QuoteID:        "quote_id_from_external_provider",
+		TransactionFee: fmt.Sprint(123 * 0.07),
+		EDT:            120,
+	}
+
+	fqd := &types.FullQuoteData{Req: request, Res: res}
+
 	tests := []struct {
 		name    string
 		req     *types.CreateQuoteRequestData
-		prepare func(xSvcMock *mock.xsm, quoteRepoMock *mock.qrm)
+		prepare func(xs *mock.MockExternalSvcClient, qr *mock.MockQuoteRepo)
 		want    *types.CreateQuoteResponseData
 		wantErr bool
 	}{
-		// TODO fix test cases
 		{
 			"1. Error empty request",
 			nil,
-			func(xs *mock.xsm, qr *mock.qrm) {},
+			func(xs *mock.MockExternalSvcClient, qr *mock.MockQuoteRepo) {},
 			nil,
 			true,
 		},
 		{
 			"2. Error on create quote",
 			request,
-			func(xs *mock.xsm, qr *mock.qrm) {
-				xs.some()
+			func(xs *mock.MockExternalSvcClient, qr *mock.MockQuoteRepo) {
+				xs.EXPECT().CreateQuote(ctx, request).Return(nil, errors.New("some error"))
 			},
 			nil,
 			true,
@@ -49,8 +59,9 @@ func TestQuoteService_Create(t *testing.T) {
 		{
 			"3. Error on save quote",
 			request,
-			func(xs *mock.xsm, qr *mock.qrm) {
-
+			func(xs *mock.MockExternalSvcClient, qr *mock.MockQuoteRepo) {
+				xs.EXPECT().CreateQuote(ctx, request).Return(res, nil)
+				qr.EXPECT().Save(ctx, fqd).Return("", errors.New("some error"))
 			},
 			nil,
 			true,
@@ -58,8 +69,9 @@ func TestQuoteService_Create(t *testing.T) {
 		{
 			"4. Success",
 			request,
-			func(xs *mock.xsm, qr *mock.qrm) {
-
+			func(xs *mock.MockExternalSvcClient, qr *mock.MockQuoteRepo) {
+				xs.EXPECT().CreateQuote(ctx, request).Return(res, nil)
+				qr.EXPECT().Save(ctx, fqd).Return(quoteID, nil)
 			},
 			&types.CreateQuoteResponseData{
 				QuoteID:        quoteID,
@@ -74,8 +86,10 @@ func TestQuoteService_Create(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			xSvcMock := mock.f()
-			quoteRepoMock := mock.f2()
+			xSvcMock := mock.NewMockExternalSvcClient(ctrl)
+			quoteRepoMock := mock.NewMockQuoteRepo(ctrl)
+
+			tt.prepare(xSvcMock, quoteRepoMock)
 
 			s := &QuoteService{
 				xSvc:      xSvcMock,
@@ -96,30 +110,46 @@ func TestQuoteService_Create(t *testing.T) {
 func TestQuoteService_Read(t *testing.T) {
 	ctx := context.Background()
 	quoteID := uint64(1234)
+	accountID := uint64(42)
 	request := &types.GetQuoteRequestData{
-		ID: quoteID,
+		ID:        quoteID,
+		AccountID: accountID,
+	}
+
+	fqd := &types.FullQuoteData{
+		ID: 1234,
+		Req: &types.CreateQuoteRequestData{
+			SourceCurrency: "BYN",
+			TargetCurrency: "EUR",
+			Amount:         "2021",
+			AccountID:      42,
+		},
+		Res: &types.CreateQuoteResponseData{
+			QuoteID:        "",
+			TransactionFee: fmt.Sprint(2021 * 0.07),
+			EDT:            120,
+		},
 	}
 
 	tests := []struct {
 		name    string
 		req     *types.GetQuoteRequestData
-		prepare func()
+		prepare func(qr *mock.MockQuoteRepo)
 		want    *types.FullQuoteData
 		wantErr bool
 	}{
-		// TODO fix test cases
 		{
 			"1. Error empty request",
 			nil,
-			func(xs *mock.xsm, qr *mock.qrm) {},
+			func(qr *mock.MockQuoteRepo) {},
 			nil,
 			true,
 		},
 		{
 			"2. Error on read quote",
 			request,
-			func(xs *mock.xsm, qr *mock.qrm) {
-				xs.some()
+			func(qr *mock.MockQuoteRepo) {
+				qr.EXPECT().Read(ctx, fmt.Sprint(request.ID), fmt.Sprint(request.AccountID)).Return(nil, errors.New("some error"))
 			},
 			nil,
 			true,
@@ -127,23 +157,10 @@ func TestQuoteService_Read(t *testing.T) {
 		{
 			"3. Success",
 			request,
-			func(xs *mock.xsm, qr *mock.qrm) {
-
+			func(qr *mock.MockQuoteRepo) {
+				qr.EXPECT().Read(ctx, fmt.Sprint(request.ID), fmt.Sprint(request.AccountID)).Return(fqd, nil)
 			},
-			&types.FullQuoteData{
-				ID: 1234,
-				Req: &types.CreateQuoteRequestData{
-					SourceCurrency: "BYN",
-					TargetCurrency: "EUR",
-					Amount:         "2021",
-					AccountID:      42,
-				},
-				Res: &types.CreateQuoteResponseData{
-					QuoteID:        "",
-					TransactionFee: fmt.Sprint(2021 * 0.07),
-					EDT:            120,
-				},
-			},
+			fqd,
 			false,
 		},
 	}
@@ -152,8 +169,10 @@ func TestQuoteService_Read(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			xSvcMock := mock.f()
-			quoteRepoMock := mock.f2()
+			xSvcMock := mock.NewMockExternalSvcClient(ctrl)
+			quoteRepoMock := mock.NewMockQuoteRepo(ctrl)
+
+			tt.prepare(quoteRepoMock)
 
 			s := &QuoteService{
 				xSvc:      xSvcMock,

@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
 	"net/http"
 	"some-http-server/internal/types"
 	"strconv"
+
+	"github.com/gorilla/mux"
+	"github.com/myntra/golimit/store"
 )
 
 type QuoteSvc interface {
@@ -16,11 +19,12 @@ type QuoteSvc interface {
 }
 
 type Handler struct {
-	svc QuoteSvc
+	svc   QuoteSvc
+	limit *store.Store
 }
 
-func NewHandler(svc QuoteSvc) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc QuoteSvc, limit *store.Store) *Handler {
+	return &Handler{svc: svc, limit: limit}
 }
 
 func (h *Handler) Register(r *mux.Router) {
@@ -36,8 +40,6 @@ type CreateQuoteResponse struct {
 	Data types.CreateQuoteResponseData `json:"data"`
 }
 
-// TODO implement request limiter here - 10 quotes/min
-
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	var req CreateQuoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -51,6 +53,11 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	err := ValidateCreateQuoteRequest(&req)
 	if err != nil {
 		renderErrorResponse(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if blocked := h.limit.Incr(fmt.Sprint(req.Data.AccountID), 1, viper.GetInt32("limit_threshold"), viper.GetInt32("limit_window"), true); !blocked {
+		renderErrorResponse(w, "limit exceeded", http.StatusTooManyRequests)
 		return
 	}
 

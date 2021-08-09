@@ -3,8 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
 	"some-http-server/internal/types"
+
+	"github.com/pkg/errors"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 )
@@ -15,7 +16,7 @@ type ExternalSvcClient interface {
 
 type QuoteRepo interface {
 	Save(ctx context.Context, quote *types.FullQuoteData) (string, error)
-	Read(ctx context.Context, id string) (*types.FullQuoteData, error)
+	Read(ctx context.Context, id, accountID string) (*types.FullQuoteData, error)
 }
 
 type QuoteService struct {
@@ -59,14 +60,14 @@ func (s *QuoteService) Read(ctx context.Context, req *types.GetQuoteRequestData)
 		return nil, types.ErrEmptyRequest
 	}
 	log := ctxlogrus.Extract(ctx)
-	log.Infof("Trying to read the quote %s", req.ID)
+	log.Infof("Trying to read the quote %d of account %d", req.ID, req.AccountID)
 
-	fqd, err := s.quoteRepo.Read(ctx, fmt.Sprint(req.ID))
+	fqd, err := s.quoteRepo.Read(ctx, fmt.Sprint(req.ID), fmt.Sprint(req.AccountID))
 	if err != nil {
-		return &types.FullQuoteData{}, errors.Wrap(err, "cannot read the quote")
+		return nil, errors.Wrap(err, "cannot read the quote")
 	}
 
-	log.Infof("Successfully read the quote %s", req.ID)
+	log.Infof("Successfully read the quote %d", req.ID)
 
 	return fqd, nil
 }

@@ -40,16 +40,16 @@ func (c *ExternalSvcClientStub) CreateQuote(ctx context.Context, data *types.Cre
 	log.Tracef("Sending a request '%v'", req)
 	// Here a call to external service takes place
 
-	res := &CreateQuoteResponse{
+	fakeRes := &CreateQuoteResponse{
 		Data: &types.CreateQuoteResponseData{
 			QuoteID:        "some_id",
 			TransactionFee: fmt.Sprint(123 * 0.07),
 			EDT:            120,
 		},
 	}
-	log.Tracef("Received a response '%v'", res)
+	log.Tracef("Received a response '%v'", fakeRes)
 
-	return res.GetData(), nil
+	return fakeRes.GetData(), nil
 }
 
 // GetData safely extracts Data from GetQuoteResponse

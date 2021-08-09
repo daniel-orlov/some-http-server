@@ -1,2 +1,5 @@
 # GoLand
 .idea/
+
+# bin
+some-http-server

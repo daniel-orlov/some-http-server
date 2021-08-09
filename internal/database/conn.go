@@ -42,16 +42,7 @@ func NewDBFromEnv() *sqlx.DB {
 		"db_name": cfg.DBName,
 	}).Info("Establishing a new database connection")
 
-	buf := bytes.Buffer{}
-	buf.WriteString(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s", cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPass, cfg.DBName))
-
-	if !cfg.DBSSL {
-		buf.WriteString(" sslmode=disable")
-	}
-
-	connStr := buf.String()
-
-	db, err := sql.Open("instrumented-postgres", connStr)
+	db, err := sql.Open("instrumented-postgres", getConnString(cfg))
 	if err != nil {
 		logrus.WithError(err).Panic("Cannot open driver with connection string")
 	}
@@ -74,4 +65,15 @@ func getDataFromEnv() *postgresCfg {
 	}
 
 	return &cfg
+}
+
+func getConnString(cfg *postgresCfg) string {
+	connString := bytes.Buffer{}
+	connString.WriteString(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s", cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPass, cfg.DBName))
+
+	if !cfg.DBSSL {
+		connString.WriteString(" sslmode=disable")
+	}
+
+	return connString.String()
 }
