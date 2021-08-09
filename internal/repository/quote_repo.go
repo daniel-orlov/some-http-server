@@ -11,22 +11,21 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type QuoteRepo struct {
+type QuoteRepository struct {
 	db *sqlx.DB
 }
 
-func NewQuoteRepo(db *sqlx.DB) *QuoteRepo {
-	return &QuoteRepo{db: db}
+func NewQuoteRepo(db *sqlx.DB) *QuoteRepository {
+	return &QuoteRepository{db: db}
 }
 
 const saveQuoteQuery = `
 	INSERT INTO quotes (account_id, quote_id, amount, source_currency, target_currency, transaction_fee, edt)
 	VALUES ($1, $2, $3, $4, $5, $6, $7)
 	RETURNING id
-	ON CONFLICT (quote_id, user_id) DO NOTHING;
-	`
+;`
 
-func (r *QuoteRepo) Save(ctx context.Context, q *types.FullQuoteData) (string, error) {
+func (r *QuoteRepository) Save(ctx context.Context, q *types.FullQuoteData) (string, error) {
 	if q == nil {
 		return "", errors.New("empty quote data")
 	}
@@ -36,7 +35,7 @@ func (r *QuoteRepo) Save(ctx context.Context, q *types.FullQuoteData) (string, e
 	})
 
 	var id string
-	err := r.db.GetContext(ctx, &id, saveQuoteQuery, q.Req.AccountID, q.Res.ID, q.Req.Amount, q.Req.SourceCurrency, q.Req.TargetCurrency, q.Res.TransactionFee, q.Res.EDT)
+	err := r.db.GetContext(ctx, &id, saveQuoteQuery, q.Req.AccountID, q.Res.QuoteID, q.Req.Amount, q.Req.SourceCurrency, q.Req.TargetCurrency, q.Res.TransactionFee, q.Res.EDT)
 	if errors.Is(err, sql.ErrNoRows) {
 		log.Debug("quote already exists for this user")
 		return "", nil
@@ -54,7 +53,7 @@ const readQuoteQuery = `
 	WHERE id = $1;
 	`
 
-func (r *QuoteRepo) Read(ctx context.Context, id string) (*types.FullQuoteData, error) {
+func (r *QuoteRepository) Read(ctx context.Context, id string) (*types.FullQuoteData, error) {
 	if id == "" {
 		return nil, errors.New("empty quote id")
 	}

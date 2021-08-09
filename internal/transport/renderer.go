@@ -18,12 +18,11 @@ func renderResponse(w http.ResponseWriter, res interface{}, status int) {
 
 	content, err := json.Marshal(res)
 	if err != nil {
-		// TODO handle error
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(status)
 
 	if _, err = w.Write(content); err != nil {
 		// TODO handle error

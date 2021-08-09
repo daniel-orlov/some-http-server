@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"some-http-server/internal/types"
 )
@@ -10,38 +12,51 @@ type XPConfig struct {
 	// Here we could have some webhook address, baseURL for requests, etc
 }
 
-type ExClientStub struct {
+type ExternalSvcClientStub struct {
 	xpAPI XPConfig
 }
 
-func NewExClientStub(xpAPI XPConfig) *ExClientStub {
-	return &ExClientStub{xpAPI: xpAPI}
+func NewExternalSvcClientStub(xpAPI XPConfig) *ExternalSvcClientStub {
+	return &ExternalSvcClientStub{xpAPI: xpAPI}
 }
 
-type GetQuoteRequest struct {
-	Data types.QuoteRequest
+type CreateQuoteRequest struct {
+	Data *types.CreateQuoteRequestData
 }
 
-type GetQuoteResponse struct {
-	Data types.QuoteResponse
+type CreateQuoteResponse struct {
+	Data *types.CreateQuoteResponseData
 }
 
-// GetQuote of the ExClientStub currently returns hard-coded data
-func (c *ExClientStub) GetQuote(ctx context.Context, data *types.QuoteRequest) (*GetQuoteResponse, error) {
+// CreateQuote of the ExClientStub currently returns hard-coded data
+func (c *ExternalSvcClientStub) CreateQuote(ctx context.Context, data *types.CreateQuoteRequestData) (*types.CreateQuoteResponseData, error) {
 	if data == nil {
 		return nil, errors.New("empty quote request data")
 	}
+	log := ctxlogrus.Extract(ctx)
 
 	// Creating request here
-	req := GetQuoteRequest{Data: *data}
+	req := CreateQuoteRequest{Data: data}
+	log.Tracef("Sending a request '%v'", req)
+	// Here a call to external service takes place
 
-	_ = ctx
-
-	return &GetQuoteResponse{
-		Data: types.QuoteResponse{
-			ID:             "some_id",
-			TransactionFee: float64(req.Data.Amount) * 0.07,
+	res := &CreateQuoteResponse{
+		Data: &types.CreateQuoteResponseData{
+			QuoteID:        "some_id",
+			TransactionFee: fmt.Sprint(123 * 0.07),
 			EDT:            120,
 		},
-	}, nil
+	}
+	log.Tracef("Received a response '%v'", res)
+
+	return res.GetData(), nil
+}
+
+// GetData safely extracts Data from GetQuoteResponse
+func (r *CreateQuoteResponse) GetData() *types.CreateQuoteResponseData {
+	if r == nil || r.Data == nil {
+		return &types.CreateQuoteResponseData{}
+	}
+
+	return r.Data
 }

@@ -7,38 +7,39 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"some-http-server/internal/types"
+	"strconv"
 )
 
-type TaskService interface {
-	Create(ctx context.Context, description string) (types.QuoteResponseData, error)
-	Read(ctx context.Context, id string) (types.FullQuoteData, error)
+type QuoteSvc interface {
+	Create(ctx context.Context, req *types.CreateQuoteRequestData) (*types.CreateQuoteResponseData, error)
+	Read(ctx context.Context, req *types.GetQuoteRequestData) (*types.FullQuoteData, error)
 }
 
-type TaskHandler struct {
-	svc TaskService
+type Handler struct {
+	svc QuoteSvc
 }
 
-func NewTaskHandler(svc TaskService) *TaskHandler {
-	return &TaskHandler{
-		svc: svc,
-	}
+func NewHandler(svc QuoteSvc) *Handler {
+	return &Handler{svc: svc}
 }
 
-func (t *TaskHandler) Register(r *mux.Router) {
-	r.HandleFunc("/tasks", t.create).Methods(http.MethodPost)
-	r.HandleFunc(fmt.Sprintf("/tasks/{id:%s}", "someRegex"), t.read).Methods(http.MethodGet)
+func (h *Handler) Register(r *mux.Router) {
+	r.HandleFunc("/quotes", h.create).Methods(http.MethodPost)
+	r.HandleFunc(fmt.Sprintf("/quotes/{user:%s}/{id:%s}", "[0-9]+", "[0-9]+"), h.read).Methods(http.MethodGet)
 }
 
-type CreateTasksRequest struct {
-	Description string `json:"description"`
+type CreateQuoteRequest struct {
+	Data types.CreateQuoteRequestData `json:"data"`
 }
 
-type CreateTasksResponse struct {
-	Task types.Task `json:"task"`
+type CreateQuoteResponse struct {
+	Data types.CreateQuoteResponseData `json:"data"`
 }
 
-func (t *TaskHandler) create(w http.ResponseWriter, r *http.Request) {
-	var req CreateTasksRequest
+// TODO implement request limiter here - 10 quotes/min
+
+func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+	var req CreateQuoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		renderErrorResponse(w, "invalid request", http.StatusBadRequest)
 		return
@@ -46,94 +47,79 @@ func (t *TaskHandler) create(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	task, err := t.svc.Create(r.Context(), req.Description)
+	// Validate request
+	err := ValidateCreateQuoteRequest(&req)
+	if err != nil {
+		renderErrorResponse(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	res, err := h.svc.Create(r.Context(), &req.Data)
 	if err != nil {
 		renderErrorResponse(w, "create failed", http.StatusInternalServerError)
 		return
 	}
 
 	renderResponse(w,
-		&CreateTasksResponse{
-			Task: types.Task{
-				ID:          task.ID,
-				Description: task.Description,
-			},
-		},
+		&CreateQuoteResponse{Data: types.CreateQuoteResponseData{
+			QuoteID:        res.QuoteID,
+			TransactionFee: res.TransactionFee,
+			EDT:            res.EDT,
+		}},
 		http.StatusCreated)
 }
 
-type GetTasksResponse struct {
-	Task types.Task `json:"task"`
+type GetQuoteResponse struct {
+	Data types.FullQuoteData `json:"data"`
 }
 
-func (t *TaskHandler) read(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	id, ok := mux.Vars(r)["id"]
 	if !ok {
-		// TODO handle
+		renderErrorResponse(w, "no id provided", http.StatusPreconditionFailed)
+		return
 	}
 
-	task, err := t.svc.Read(r.Context(), id)
+	quoteID, err := strconv.Atoi(id)
 	if err != nil {
-		renderErrorResponse(w, "find failed", http.StatusNotFound)
+		renderErrorResponse(w, "invalid id", http.StatusPreconditionFailed)
+		return
+	}
+
+	user, ok := mux.Vars(r)["user"]
+	if !ok {
+		renderErrorResponse(w, "no user id provided", http.StatusPreconditionFailed)
+		return
+	}
+
+	accountID, err := strconv.Atoi(user)
+	if err != nil {
+		renderErrorResponse(w, "invalid user id", http.StatusPreconditionFailed)
+		return
+	}
+
+	req := &types.GetQuoteRequestData{ID: uint64(quoteID), AccountID: uint64(accountID)}
+	fqd, err := h.svc.Read(r.Context(), req)
+	if err != nil {
+		renderErrorResponse(w, "read failed", http.StatusNotFound)
 		return
 	}
 
 	renderResponse(w,
-		&GetTasksResponse{
-			Task: types.Task{
-				ID:          task.ID,
-				Description: task.Description,
+		&GetQuoteResponse{
+			Data: types.FullQuoteData{
+				ID: fqd.ID,
+				Req: &types.CreateQuoteRequestData{
+					SourceCurrency: fqd.Req.SourceCurrency,
+					TargetCurrency: fqd.Req.TargetCurrency,
+					Amount:         fqd.Req.Amount,
+					AccountID:      fqd.Req.AccountID,
+				},
+				Res: &types.CreateQuoteResponseData{
+					TransactionFee: fqd.Res.TransactionFee,
+					EDT:            fqd.Res.EDT,
+				},
 			},
 		},
 		http.StatusOK)
-}
-
-// UpdateTasksRequest defines the request used for updating a task.
-type UpdateTasksRequest struct {
-	Description string `json:"description"`
-}
-
-func (t *TaskHandler) update(w http.ResponseWriter, r *http.Request) {
-	var req UpdateTasksRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		renderErrorResponse(w, "invalid request", http.StatusBadRequest)
-		return
-	}
-
-	defer r.Body.Close()
-
-	id, ok := mux.Vars(r)["id"]
-	if !ok {
-		// TODO handle
-	}
-
-	err := t.svc.Update(r.Context(), id, req.Description)
-	if err != nil {
-		renderErrorResponse(w, "update failed", http.StatusInternalServerError)
-		return
-	}
-
-	renderResponse(w, &struct{}{}, http.StatusOK)
-}
-
-type DeleteTasksRequest struct {
-	Id string `json:"id"`
-}
-
-func (t *TaskHandler) delete(w http.ResponseWriter, r *http.Request) {
-	var req DeleteTasksRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		renderErrorResponse(w, "invalid request", http.StatusBadRequest)
-		return
-	}
-
-	defer r.Body.Close()
-
-	err := t.svc.Delete(r.Context(), req.Id)
-	if err != nil {
-		renderErrorResponse(w, "create failed", http.StatusInternalServerError)
-		return
-	}
-
-	renderResponse(w, &struct{}{}, http.StatusCreated)
 }

@@ -23,22 +23,28 @@ func init() {
 }
 
 func main() {
-	// Establishing connection to database.
+	// Establishing connection to all databases.
 	db := database.NewDBFromEnv()
 	defer db.Close()
+
+	// TODO add redis connection
+
 
 	// Initiating all repositories.
 	quoteRepo := repository.NewQuoteRepo(db)
 
+	// Wrapping them into cash.
+	cachedQR := repository.NewProxyQuoteRepo(quoteRepo, redisDB)
+
 	// Connecting clients
-	xSvcClientStub := repository.NewExClientStub(repository.XPConfig{})
+	xSvcClientStub := repository.NewExternalSvcClientStub(repository.XPConfig{})
 
 	// Instantiating main service.
-	svc := service.NewQuoteService(xSvcClientStub, quoteRepo)
+	svc := service.NewQuoteService(xSvcClientStub, cachedQR)
 
 	r := mux.NewRouter()
 
-	transport.NewTaskHandler(svc).Register(r)
+	transport.NewHandler(svc).Register(r)
 
 	address := viper.GetString("address")
 
