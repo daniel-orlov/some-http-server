@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"github.com/pkg/errors"
 	"some-http-server/internal/types"
+
+	"github.com/pkg/errors"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/jmoiron/sqlx"
@@ -20,10 +21,14 @@ func NewQuoteRepo(db *sqlx.DB) *QuoteRepository {
 }
 
 const saveQuoteQuery = `
-	INSERT INTO quotes (account_id, quote_id, amount, source_currency, target_currency, transaction_fee, edt)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)
-	RETURNING id
-;`
+	INSERT INTO quotes (
+		account_id, quote_id, amount, source_currency,
+		target_currency, transaction_fee, edt
+	)
+	VALUES (
+		$1, $2, $3, $4, $5, $6, $7
+	)
+	RETURNING id;`
 
 func (r *QuoteRepository) Save(ctx context.Context, q *types.FullQuoteData) (string, error) {
 	if q == nil {
@@ -35,7 +40,7 @@ func (r *QuoteRepository) Save(ctx context.Context, q *types.FullQuoteData) (str
 	})
 
 	var id string
-	err := r.db.GetContext(ctx, &id, saveQuoteQuery, q.Req.AccountID, q.Res.QuoteID, q.Req.Amount, q.Req.SourceCurrency, q.Req.TargetCurrency, q.Res.TransactionFee, q.Res.EDT)
+	err := r.db.GetContext(ctx, &id, saveQuoteQuery, q.AccountID, q.QuoteID, q.Amount, q.SourceCurrency, q.TargetCurrency, q.TransactionFee, q.EDT)
 	if errors.Is(err, sql.ErrNoRows) {
 		log.Debug("quote already exists for this user")
 		return "", nil
@@ -50,8 +55,7 @@ func (r *QuoteRepository) Save(ctx context.Context, q *types.FullQuoteData) (str
 const readQuoteQuery = `
 	SELECT id, account_id, quote_id, amount, source_currency, target_currency, transaction_fee, edt
 	FROM quotes 
-	WHERE id = $1 AND account_id = $2;
-	`
+	WHERE id = $1 AND account_id = $2;`
 
 func (r *QuoteRepository) Read(ctx context.Context, id, accountID string) (*types.FullQuoteData, error) {
 	if id == "" {

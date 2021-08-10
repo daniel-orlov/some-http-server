@@ -9,6 +9,7 @@ import (
 	"some-http-server/internal/types"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/myntra/golimit/store"
 )
@@ -87,7 +88,7 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	quoteID, err := strconv.Atoi(id)
+	_, err := uuid.Parse(id)
 	if err != nil {
 		renderErrorResponse(w, "invalid id", http.StatusPreconditionFailed)
 		return
@@ -105,7 +106,7 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := &types.GetQuoteRequestData{ID: uint64(quoteID), AccountID: uint64(accountID)}
+	req := &types.GetQuoteRequestData{ID: id, AccountID: uint64(accountID)}
 	fqd, err := h.svc.Read(r.Context(), req)
 	if err != nil {
 		renderErrorResponse(w, "read failed", http.StatusNotFound)
@@ -115,16 +116,16 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	renderResponse(w,
 		&GetQuoteResponse{
 			Data: types.FullQuoteData{
-				ID: fqd.ID,
-				Req: &types.CreateQuoteRequestData{
-					SourceCurrency: fqd.Req.SourceCurrency,
-					TargetCurrency: fqd.Req.TargetCurrency,
-					Amount:         fqd.Req.Amount,
-					AccountID:      fqd.Req.AccountID,
+				fqd.ID,
+				types.CreateQuoteRequestData{
+					SourceCurrency: fqd.SourceCurrency,
+					TargetCurrency: fqd.TargetCurrency,
+					Amount:         fqd.Amount,
+					AccountID:      fqd.AccountID,
 				},
-				Res: &types.CreateQuoteResponseData{
-					TransactionFee: fqd.Res.TransactionFee,
-					EDT:            fqd.Res.EDT,
+				types.CreateQuoteResponseData{
+					TransactionFee: fqd.TransactionFee,
+					EDT:            fqd.EDT,
 				},
 			},
 		},

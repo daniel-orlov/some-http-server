@@ -41,7 +41,7 @@ func (s *QuoteService) Create(ctx context.Context, req *types.CreateQuoteRequest
 
 	log.Info("Successfully created a quote")
 
-	fqd := &types.FullQuoteData{Req: req, Res: res}
+	fqd := &types.FullQuoteData{ "", *req,  *res}
 
 	id, err := s.quoteRepo.Save(ctx, fqd)
 	if err != nil {
@@ -49,7 +49,7 @@ func (s *QuoteService) Create(ctx context.Context, req *types.CreateQuoteRequest
 	}
 	log.Info("Successfully saved the quote in the db")
 
-	// Not to expose real ID and avoid relying on external svc provider in its consistency
+	// Not to expose the real ID and avoid relying on external svc provider in its consistency
 	res.QuoteID = id
 
 	return res, nil
@@ -60,14 +60,14 @@ func (s *QuoteService) Read(ctx context.Context, req *types.GetQuoteRequestData)
 		return nil, types.ErrEmptyRequest
 	}
 	log := ctxlogrus.Extract(ctx)
-	log.Infof("Trying to read the quote %d of account %d", req.ID, req.AccountID)
+	log.Infof("Trying to read the quote %s of account %d", req.ID, req.AccountID)
 
 	fqd, err := s.quoteRepo.Read(ctx, fmt.Sprint(req.ID), fmt.Sprint(req.AccountID))
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot read the quote")
 	}
 
-	log.Infof("Successfully read the quote %d", req.ID)
+	log.Infof("Successfully read the quote %s", req.ID)
 
 	return fqd, nil
 }

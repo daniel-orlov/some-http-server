@@ -3,11 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
 	"reflect"
 	"some-http-server/internal/service/mock"
 	"some-http-server/internal/types"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	"github.com/golang/mock/gomock"
 )
@@ -31,7 +32,7 @@ func TestQuoteService_Create(t *testing.T) {
 		EDT:            120,
 	}
 
-	fqd := &types.FullQuoteData{Req: request, Res: res}
+	fqd := &types.FullQuoteData{"", *request, *res}
 
 	tests := []struct {
 		name    string
@@ -109,22 +110,21 @@ func TestQuoteService_Create(t *testing.T) {
 
 func TestQuoteService_Read(t *testing.T) {
 	ctx := context.Background()
-	quoteID := uint64(1234)
 	accountID := uint64(42)
 	request := &types.GetQuoteRequestData{
-		ID:        quoteID,
+		ID:        "some_uuid",
 		AccountID: accountID,
 	}
 
 	fqd := &types.FullQuoteData{
-		ID: 1234,
-		Req: &types.CreateQuoteRequestData{
+		"1234",
+		types.CreateQuoteRequestData{
 			SourceCurrency: "BYN",
 			TargetCurrency: "EUR",
 			Amount:         "2021",
 			AccountID:      42,
 		},
-		Res: &types.CreateQuoteResponseData{
+		types.CreateQuoteResponseData{
 			QuoteID:        "",
 			TransactionFee: fmt.Sprint(2021 * 0.07),
 			EDT:            120,

@@ -1,5 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS quotes (
-    id BIGINT GENERATED ALWAYS AS IDENTITY NOT NULL,
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     account_id BIGINT NOT NULL,
     quote_id VARCHAR(64) NOT NULL,
     amount VARCHAR(64) NOT NULL,

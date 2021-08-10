@@ -6,9 +6,9 @@ const (
 
 type FullQuoteData struct {
 	// ID is our own, not the external service's
-	ID  uint64                   `json:"id"`
-	Req *CreateQuoteRequestData  `json:"req"`
-	Res *CreateQuoteResponseData `json:"res"`
+	ID  string                  `json:"id"`
+	CreateQuoteRequestData  `json:"req"`
+	CreateQuoteResponseData `json:"res"`
 }
 
 type CreateQuoteRequestData struct {
@@ -26,6 +26,6 @@ type CreateQuoteResponseData struct {
 }
 
 type GetQuoteRequestData struct {
-	ID        uint64 `json:"id"`
+	ID        string `json:"id"`
 	AccountID uint64 `json:"account_id"`
 }
